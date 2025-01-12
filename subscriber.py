@@ -10,6 +10,7 @@ import json
 import queue
 import threading
 import time
+import sys
 
 # Set font to something similar to Calibri
 mpl.rcParams['font.family'] = 'DejaVu Sans'  # Replace with 'Calibri' if installed
@@ -54,105 +55,110 @@ def plot_data():
     plt.ion()
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    while True:
-        # Process new data from stream 1
-        while not data_queue1.empty():
-            data = data_queue1.get()
-            timestamp = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
-            value = data["value"]
+    try:
+        while plt.fignum_exists(fig.number):  # Check if the figure still exists
+            # Process new data from stream 1
+            while not data_queue1.empty():
+                data = data_queue1.get()
+                timestamp = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
+                value = data["value"]
 
-            timestamps_stream1.append(timestamp)
-            values_stream1.append(value)
+                timestamps_stream1.append(timestamp)
+                values_stream1.append(value)
 
-            # Keep only the latest 100 points
-            if len(timestamps_stream1) > 100:
-                timestamps_stream1.pop(0)
-                values_stream1.pop(0)
+                # Keep only the latest 100 points
+                if len(timestamps_stream1) > 100:
+                    timestamps_stream1.pop(0)
+                    values_stream1.pop(0)
 
-        # Process new data from stream 2
-        while not data_queue2.empty():
-            data = data_queue2.get()
-            timestamp = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
-            value = data["value"]
+            # Process new data from stream 2
+            while not data_queue2.empty():
+                data = data_queue2.get()
+                timestamp = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
+                value = data["value"]
 
-            timestamps_stream2.append(timestamp)
-            values_stream2.append(value)
+                timestamps_stream2.append(timestamp)
+                values_stream2.append(value)
 
-            # Keep only the latest 100 points
-            if len(timestamps_stream2) > 100:
-                timestamps_stream2.pop(0)
-                values_stream2.pop(0)
+                # Keep only the latest 100 points
+                if len(timestamps_stream2) > 100:
+                    timestamps_stream2.pop(0)
+                    values_stream2.pop(0)
 
-        # Update the plot
-        ax.clear()
+            # Update the plot
+            ax.clear()
 
-        # Plot Stream 1
-        sns.lineplot(
-            x=timestamps_stream1,
-            y=values_stream1,
-            ax=ax,
-            color="darkorange",
-            label="Stream 1 (Straight Line)",
-            linewidth=2,
-            marker="o",
-        )
-
-        # Add cubic spline interpolation for Stream 1
-        if len(values_stream1) > 3:  # Need at least 4 points for cubic spline
-            numeric_timestamps1 = mdates.date2num(timestamps_stream1)
-            cs1 = CubicSpline(numeric_timestamps1, values_stream1)
-            fine_timestamps1 = np.linspace(numeric_timestamps1[0], numeric_timestamps1[-1], 500)
-            smooth_values1 = cs1(fine_timestamps1)
+            # Plot Stream 1
             sns.lineplot(
-                x=mdates.num2date(fine_timestamps1),
-                y=smooth_values1,
+                x=timestamps_stream1,
+                y=values_stream1,
                 ax=ax,
                 color="darkorange",
-                label="Stream 1 (Interpolated)",
+                label="Stream 1 (Straight Line)",
                 linewidth=2,
-                linestyle="--",  # Dashed line
+                marker="o",
             )
 
-        # Plot Stream 2
-        sns.lineplot(
-            x=timestamps_stream2,
-            y=values_stream2,
-            ax=ax,
-            color="green",
-            label="Stream 2 (Straight Line)",
-            linewidth=2,
-            marker="o",
-        )
+            # Add cubic spline interpolation for Stream 1
+            if len(values_stream1) > 3:  # Need at least 4 points for cubic spline
+                numeric_timestamps1 = mdates.date2num(timestamps_stream1)
+                cs1 = CubicSpline(numeric_timestamps1, values_stream1)
+                fine_timestamps1 = np.linspace(numeric_timestamps1[0], numeric_timestamps1[-1], 500)
+                smooth_values1 = cs1(fine_timestamps1)
+                sns.lineplot(
+                    x=mdates.num2date(fine_timestamps1),
+                    y=smooth_values1,
+                    ax=ax,
+                    color="darkorange",
+                    label="Stream 1 (Interpolated)",
+                    linewidth=2,
+                    linestyle="--",  # Dashed line
+                )
 
-        # Add cubic spline interpolation for Stream 2
-        if len(values_stream2) > 3:  # Need at least 4 points for cubic spline
-            numeric_timestamps2 = mdates.date2num(timestamps_stream2)
-            cs2 = CubicSpline(numeric_timestamps2, values_stream2)
-            fine_timestamps2 = np.linspace(numeric_timestamps2[0], numeric_timestamps2[-1], 500)
-            smooth_values2 = cs2(fine_timestamps2)
+            # Plot Stream 2
             sns.lineplot(
-                x=mdates.num2date(fine_timestamps2),
-                y=smooth_values2,
+                x=timestamps_stream2,
+                y=values_stream2,
                 ax=ax,
                 color="green",
-                label="Stream 2 (Interpolated)",
+                label="Stream 2 (Straight Line)",
                 linewidth=2,
-                linestyle="--",  # Dashed line
+                marker="o",
             )
 
-        # Formatting and aesthetics
-        ax.set_title("Live Time-Series Data from Multiple Streams", fontsize=18, fontweight="bold")
-        ax.set_xlabel("Timestamp", fontsize=14)
-        ax.set_ylabel("Value", fontsize=14)
-        ax.legend(loc="upper left", fontsize=12)
+            # Add cubic spline interpolation for Stream 2
+            if len(values_stream2) > 3:  # Need at least 4 points for cubic spline
+                numeric_timestamps2 = mdates.date2num(timestamps_stream2)
+                cs2 = CubicSpline(numeric_timestamps2, values_stream2)
+                fine_timestamps2 = np.linspace(numeric_timestamps2[0], numeric_timestamps2[-1], 500)
+                smooth_values2 = cs2(fine_timestamps2)
+                sns.lineplot(
+                    x=mdates.num2date(fine_timestamps2),
+                    y=smooth_values2,
+                    ax=ax,
+                    color="green",
+                    label="Stream 2 (Interpolated)",
+                    linewidth=2,
+                    linestyle="--",  # Dashed line
+                )
 
-        # Format x-axis with readable timestamps
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
-        fig.autofmt_xdate()
+            # Formatting and aesthetics
+            ax.set_title("Live Time-Series Data from Multiple Streams", fontsize=18, fontweight="bold")
+            ax.set_xlabel("Timestamp", fontsize=14)
+            ax.set_ylabel("Value", fontsize=14)
+            ax.legend(loc="upper left", fontsize=12)
 
-        plt.tight_layout()
-        plt.pause(0.01)
-        time.sleep(0.1)  # Reduce CPU usage
+            # Format x-axis with readable timestamps
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+            fig.autofmt_xdate()
+
+            plt.tight_layout()
+            plt.pause(0.01)
+            time.sleep(0.1)  # Reduce CPU usage
+
+    finally:
+        plt.close()
+        print("Plot window closed. Exiting.")
 
 if __name__ == "__main__":
     # Start MQTT subscriber in a separate thread
