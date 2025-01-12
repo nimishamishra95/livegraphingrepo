@@ -17,29 +17,36 @@ mpl.rcParams['font.family'] = 'DejaVu Sans'  # Replace with 'Calibri' if install
 # MQTT settings
 BROKER = "localhost"
 PORT = 1883
-TOPIC = "time_series/data"
+TOPIC1 = "time_series/data"
+TOPIC2 = "time_series/data_stream_2"
 
 # Data storage
-timestamps = []
-values = []
-data_queue = queue.Queue()
+timestamps_stream1 = []
+values_stream1 = []
+timestamps_stream2 = []
+values_stream2 = []
+data_queue1 = queue.Queue()
+data_queue2 = queue.Queue()
 
 def on_message(client, userdata, msg):
     """Callback for receiving MQTT messages."""
     data = json.loads(msg.payload.decode())
-    data_queue.put(data)
+    if msg.topic == TOPIC1:
+        data_queue1.put(data)
+    elif msg.topic == TOPIC2:
+        data_queue2.put(data)
 
 def mqtt_subscriber():
-    """Subscribe to the MQTT topic in a separate thread."""
+    """Subscribe to the MQTT topics in a separate thread."""
     client = mqtt.Client()
     client.on_message = on_message
     client.connect(BROKER, PORT)
-    client.subscribe(TOPIC)
+    client.subscribe([(TOPIC1, 0), (TOPIC2, 0)])  # Subscribe to both topics
     client.loop_forever()
 
 def plot_data():
-    """Plot data from the queue with smooth curves and straight lines."""
-    global timestamps, values
+    """Plot data from the queues with smooth curves and straight lines."""
+    global timestamps_stream1, values_stream1, timestamps_stream2, values_stream2
 
     # Set Seaborn theme
     sns.set_theme(style="whitegrid")
@@ -48,55 +55,93 @@ def plot_data():
     fig, ax = plt.subplots(figsize=(12, 6))
 
     while True:
-        # Process new data from the queue
-        while not data_queue.empty():
-            data = data_queue.get()
+        # Process new data from stream 1
+        while not data_queue1.empty():
+            data = data_queue1.get()
             timestamp = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
             value = data["value"]
 
-            timestamps.append(timestamp)
-            values.append(value)
+            timestamps_stream1.append(timestamp)
+            values_stream1.append(value)
 
             # Keep only the latest 100 points
-            if len(timestamps) > 100:
-                timestamps.pop(0)
-                values.pop(0)
+            if len(timestamps_stream1) > 100:
+                timestamps_stream1.pop(0)
+                values_stream1.pop(0)
+
+        # Process new data from stream 2
+        while not data_queue2.empty():
+            data = data_queue2.get()
+            timestamp = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
+            value = data["value"]
+
+            timestamps_stream2.append(timestamp)
+            values_stream2.append(value)
+
+            # Keep only the latest 100 points
+            if len(timestamps_stream2) > 100:
+                timestamps_stream2.pop(0)
+                values_stream2.pop(0)
 
         # Update the plot
         ax.clear()
 
-        # Plot the straight line connecting all data points
+        # Plot Stream 1
         sns.lineplot(
-            x=timestamps,
-            y=values,
+            x=timestamps_stream1,
+            y=values_stream1,
             ax=ax,
             color="darkorange",
-            label="Straight Line Connection",
+            label="Stream 1 (Straight Line)",
             linewidth=2,
             marker="o",
         )
 
-        if len(values) > 3:  # Need at least 4 points for cubic spline
-            # Convert timestamps to numeric for interpolation
-            numeric_timestamps = mdates.date2num(timestamps)
-
-            # Cubic spline interpolation
-            cs = CubicSpline(numeric_timestamps, values)
-            fine_timestamps = np.linspace(numeric_timestamps[0], numeric_timestamps[-1], 500)
-            smooth_values = cs(fine_timestamps)
-
-            # Plot the interpolated curve
+        # Add cubic spline interpolation for Stream 1
+        if len(values_stream1) > 3:  # Need at least 4 points for cubic spline
+            numeric_timestamps1 = mdates.date2num(timestamps_stream1)
+            cs1 = CubicSpline(numeric_timestamps1, values_stream1)
+            fine_timestamps1 = np.linspace(numeric_timestamps1[0], numeric_timestamps1[-1], 500)
+            smooth_values1 = cs1(fine_timestamps1)
             sns.lineplot(
-                x=mdates.num2date(fine_timestamps),
-                y=smooth_values,
+                x=mdates.num2date(fine_timestamps1),
+                y=smooth_values1,
                 ax=ax,
-                color="dodgerblue",
-                label="Smoothed Curve",
+                color="darkorange",
+                label="Stream 1 (Interpolated)",
                 linewidth=2,
+                linestyle="--",  # Dashed line
+            )
+
+        # Plot Stream 2
+        sns.lineplot(
+            x=timestamps_stream2,
+            y=values_stream2,
+            ax=ax,
+            color="green",
+            label="Stream 2 (Straight Line)",
+            linewidth=2,
+            marker="o",
+        )
+
+        # Add cubic spline interpolation for Stream 2
+        if len(values_stream2) > 3:  # Need at least 4 points for cubic spline
+            numeric_timestamps2 = mdates.date2num(timestamps_stream2)
+            cs2 = CubicSpline(numeric_timestamps2, values_stream2)
+            fine_timestamps2 = np.linspace(numeric_timestamps2[0], numeric_timestamps2[-1], 500)
+            smooth_values2 = cs2(fine_timestamps2)
+            sns.lineplot(
+                x=mdates.num2date(fine_timestamps2),
+                y=smooth_values2,
+                ax=ax,
+                color="green",
+                label="Stream 2 (Interpolated)",
+                linewidth=2,
+                linestyle="--",  # Dashed line
             )
 
         # Formatting and aesthetics
-        ax.set_title("Live Time-Series Data with Smooth Interpolation and Straight Lines", fontsize=18, fontweight="bold")
+        ax.set_title("Live Time-Series Data from Multiple Streams", fontsize=18, fontweight="bold")
         ax.set_xlabel("Timestamp", fontsize=14)
         ax.set_ylabel("Value", fontsize=14)
         ax.legend(loc="upper left", fontsize=12)
