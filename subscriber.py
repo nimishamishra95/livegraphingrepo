@@ -2,7 +2,6 @@ import paho.mqtt.client as mqtt
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import seaborn as sns
-from scipy.interpolate import CubicSpline
 from datetime import datetime
 import matplotlib.dates as mdates
 import numpy as np
@@ -76,27 +75,8 @@ def plot_data():
             marker="o",
         )
 
-        if len(values) > 3:  # Need at least 4 points for cubic spline
-            # Convert timestamps to numeric for interpolation
-            numeric_timestamps = mdates.date2num(timestamps)
-
-            # Cubic spline interpolation
-            cs = CubicSpline(numeric_timestamps, values)
-            fine_timestamps = np.linspace(numeric_timestamps[0], numeric_timestamps[-1], 500)
-            smooth_values = cs(fine_timestamps)
-
-            # Plot the interpolated curve
-            sns.lineplot(
-                x=mdates.num2date(fine_timestamps),
-                y=smooth_values,
-                ax=ax,
-                color="dodgerblue",
-                label="Smoothed Curve",
-                linewidth=2,
-            )
-
         # Formatting and aesthetics
-        ax.set_title("Live Time-Series Data with Smooth Interpolation and Straight Lines", fontsize=18, fontweight="bold")
+        ax.set_title("Live Time-Series Data", fontsize=18, fontweight="bold")
         ax.set_xlabel("Timestamp", fontsize=14)
         ax.set_ylabel("Value", fontsize=14)
         ax.legend(loc="upper left", fontsize=12)
