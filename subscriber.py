@@ -20,14 +20,18 @@ BROKER = "localhost"
 PORT = 1883
 TOPIC1 = "time_series/data"
 TOPIC2 = "time_series/data_stream_2"
+TOPIC3 = "time_series/data_stream_3"
 
 # Data storage
 timestamps_stream1 = []
 values_stream1 = []
 timestamps_stream2 = []
 values_stream2 = []
+timestamps_stream3 = []
+values_stream3 = []
 data_queue1 = queue.Queue()
 data_queue2 = queue.Queue()
+data_queue3 = queue.Queue()
 
 def on_message(client, userdata, msg):
     """Callback for receiving MQTT messages."""
@@ -36,24 +40,26 @@ def on_message(client, userdata, msg):
         data_queue1.put(data)
     elif msg.topic == TOPIC2:
         data_queue2.put(data)
+    elif msg.topic == TOPIC3:
+        data_queue3.put(data)
 
 def mqtt_subscriber():
     """Subscribe to the MQTT topics in a separate thread."""
     client = mqtt.Client()
     client.on_message = on_message
     client.connect(BROKER, PORT)
-    client.subscribe([(TOPIC1, 0), (TOPIC2, 0)])  # Subscribe to both topics
+    client.subscribe([(TOPIC1, 0), (TOPIC2, 0), (TOPIC3, 0)])  # Subscribe to all topics
     client.loop_forever()
 
 def plot_data():
     """Plot data from the queues with smooth curves and straight lines."""
-    global timestamps_stream1, values_stream1, timestamps_stream2, values_stream2
+    global timestamps_stream1, values_stream1, timestamps_stream2, values_stream2, timestamps_stream3, values_stream3
 
     # Set Seaborn theme
     sns.set_theme(style="whitegrid")
 
     plt.ion()
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12), sharex=True)
 
     try:
         while plt.fignum_exists(fig.number):  # Check if the figure still exists
@@ -85,14 +91,28 @@ def plot_data():
                     timestamps_stream2.pop(0)
                     values_stream2.pop(0)
 
-            # Update the plot
-            ax.clear()
+            # Process new data from stream 3
+            while not data_queue3.empty():
+                data = data_queue3.get()
+                timestamp = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
+                value = data["value"]
+
+                timestamps_stream3.append(timestamp)
+                values_stream3.append(value)
+
+                # Keep only the latest 100 points
+                if len(timestamps_stream3) > 100:
+                    timestamps_stream3.pop(0)
+                    values_stream3.pop(0)
+
+            # Update the plot for streams 1 and 2
+            ax1.clear()
 
             # Plot Stream 1
             sns.lineplot(
                 x=timestamps_stream1,
                 y=values_stream1,
-                ax=ax,
+                ax=ax1,
                 color="darkorange",
                 label="Stream 1 (Straight Line)",
                 linewidth=2,
@@ -108,7 +128,7 @@ def plot_data():
                 sns.lineplot(
                     x=mdates.num2date(fine_timestamps1),
                     y=smooth_values1,
-                    ax=ax,
+                    ax=ax1,
                     color="darkorange",
                     label="Stream 1 (Interpolated)",
                     linewidth=2,
@@ -119,7 +139,7 @@ def plot_data():
             sns.lineplot(
                 x=timestamps_stream2,
                 y=values_stream2,
-                ax=ax,
+                ax=ax1,
                 color="green",
                 label="Stream 2 (Straight Line)",
                 linewidth=2,
@@ -135,21 +155,54 @@ def plot_data():
                 sns.lineplot(
                     x=mdates.num2date(fine_timestamps2),
                     y=smooth_values2,
-                    ax=ax,
+                    ax=ax1,
                     color="green",
                     label="Stream 2 (Interpolated)",
                     linewidth=2,
                     linestyle="--",  # Dashed line
                 )
 
-            # Formatting and aesthetics
-            ax.set_title("Live Time-Series Data from Multiple Streams", fontsize=18, fontweight="bold")
-            ax.set_xlabel("Timestamp", fontsize=14)
-            ax.set_ylabel("Value", fontsize=14)
-            ax.legend(loc="upper left", fontsize=12)
+            ax1.set_title("Live Time-Series Data: Streams 1 and 2", fontsize=18, fontweight="bold")
+            ax1.set_xlabel("", fontsize=14)  # No xlabel for the top plot
+            ax1.set_ylabel("Value", fontsize=14)
+            ax1.legend(loc="upper left", fontsize=12)
+
+            # Update the plot for stream 3
+            ax2.clear()
+
+            sns.lineplot(
+                x=timestamps_stream3,
+                y=values_stream3,
+                ax=ax2,
+                color="blue",
+                label="Stream 3 (Straight Line)",
+                linewidth=2,
+                marker="o",
+            )
+
+            # Add cubic spline interpolation for Stream 3
+            if len(values_stream3) > 3:  # Need at least 4 points for cubic spline
+                numeric_timestamps3 = mdates.date2num(timestamps_stream3)
+                cs3 = CubicSpline(numeric_timestamps3, values_stream3)
+                fine_timestamps3 = np.linspace(numeric_timestamps3[0], numeric_timestamps3[-1], 500)
+                smooth_values3 = cs3(fine_timestamps3)
+                sns.lineplot(
+                    x=mdates.num2date(fine_timestamps3),
+                    y=smooth_values3,
+                    ax=ax2,
+                    color="blue",
+                    label="Stream 3 (Interpolated)",
+                    linewidth=2,
+                    linestyle="--",  # Dashed line
+                )
+
+            ax2.set_title("Live Time-Series Data: Stream 3", fontsize=18, fontweight="bold")
+            ax2.set_xlabel("Timestamp", fontsize=14)
+            ax2.set_ylabel("Value", fontsize=14)
+            ax2.legend(loc="upper left", fontsize=12)
 
             # Format x-axis with readable timestamps
-            ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+            ax2.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
             fig.autofmt_xdate()
 
             plt.tight_layout()

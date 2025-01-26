@@ -10,6 +10,7 @@ BROKER = "localhost"
 PORT = 1883
 TOPIC1 = "time_series/data"
 TOPIC2 = "time_series/data_stream_2"
+TOPIC3 = "time_series/data_stream_3"
 
 # Shared flag to signal threads to stop
 stop_event = threading.Event()
@@ -38,13 +39,15 @@ def publish_data(topic, interval):
         print(f"Publisher for {topic} stopped.")
 
 if __name__ == "__main__":
-    # Create separate threads for the two publishers
+    # Create separate threads for the three publishers
     thread1 = threading.Thread(target=publish_data, args=(TOPIC1, 1))
     thread2 = threading.Thread(target=publish_data, args=(TOPIC2, 2))
+    thread3 = threading.Thread(target=publish_data, args=(TOPIC3, 3))
 
     # Start the threads
     thread1.start()
     thread2.start()
+    thread3.start()
 
     try:
         while True:
@@ -56,4 +59,5 @@ if __name__ == "__main__":
     # Wait for threads to finish
     thread1.join()
     thread2.join()
+    thread3.join()
     print("All publishers stopped.")
